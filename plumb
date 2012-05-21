@@ -42,7 +42,7 @@ if (~ $url *:*) {
 	pos=`{echo $url | awk -F: '{print $2}'}
 
 	if (test -f $"file)
-		term_run vile -c$"pos $"file
+		term_run $EDITOR -c$"pos $"file
 }
 
 if (test -f $url && ~ $url *.png *.PNG *.jpg *.JPG *.gif)
