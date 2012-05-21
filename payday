@@ -1,0 +1,19 @@
+#!/bin/awk -f
+
+/^\*/ {
+	for (i = 2; i <= NF; ++i) {
+		n = split($i, f, /:/);
+		price[f[1]] = f[2];
+	}
+	next
+}
+{
+	s = price["+"]
+	for (i = 2; i <= NF; ++i) {
+		n = split($i, f, /:/);
+		s += price[f[1]] * (f[2] - prev[f[1]]);
+		prev[f[1]] = f[2];
+	}
+	if (!($1 ~ /^-/))
+		printf("%s | %f\n", $0, s);
+}

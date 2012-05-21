@@ -1,0 +1,30 @@
+#!/bin/sh
+
+cd $HOME/dev
+
+walk() {
+	while true; do
+		dir=`ls -a -p | ${DMENU-dmenu}`
+    case "$dir" in
+      .|./)
+        pwd
+        return
+        ;;
+      *)
+        if test -d "$dir" ; then
+          cd "$dir"
+        else
+          echo $dir
+          return
+        fi
+        ;;
+    esac
+	done
+}
+
+dir=$(walk)
+if test -d "$dir"; then
+  cd "$dir"
+  xterm &
+  xterm & 
+fi

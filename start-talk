@@ -1,0 +1,17 @@
+#!/usr/bin/env rc
+
+dir=/tmp
+
+for (f in $HOME/lib/irc/*) {
+  s=$dir/ns.$USER/irc-`{basename $f}
+  if (test -x $f)
+    if (! test -e $s)
+      dtach -n $s $f
+}
+
+for (f in $HOME/lib/xmpp/*) {
+  s=$dir/ns.$USER/xmpp-`{basename $f}
+  if (test -x $f)
+    if (! test -e $s)
+      dtach -n $s $f
+}

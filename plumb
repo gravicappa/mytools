@@ -1,0 +1,62 @@
+#!/usr/bin/env rc
+
+fn term_run {
+	if (tty -s)
+		exec $*
+	if not {
+		arg=''''^$*^''''
+		exec xterm -e 'exec '^$"arg
+	}
+}
+
+url=$1
+if (test $#* -eq 0)
+	url=`{xclip -o}
+url=$"url
+
+if (~ $url http*jamendo*album*) {
+	linkhead='http://www.jamendo.com/get2/stream/track/m3u/?album_id='
+	linktail='&order=numalbum_asc'
+	album=`{echo $url | awk -F/ '{sub(/[^0-9]/,"", $6); print($6)}'}
+	url=$linkhead^$"album$linktail
+	term_run mplayer -playlist $url
+}
+
+if (~ $url http*://*.png http*://*.jpg http*://*.gif http*://*imageshack* \
+					 http*://*tinypic* http*://img-fotki.yandex.ru/* http*://*.jpeg \
+					 http*://ompldr.org/*)
+	exec surf $url
+
+if (~ $url *youtube.com* *youtu.be/*) {
+	http_proxy=''
+	exec yplay $url
+	#mpl='mplayer -cache 32768 -cache-min 1 -cache-seek-min 10 '$"mplayer_flags' %u'
+	#exec quvi $url $quvi_flags --exec $mpl
+}
+
+if (~ $url http://* https://*)
+	term_run w3m $url
+
+if (~ $url *:*) {
+	file=`{echo $url | awk -F: '{print $1}'} 
+	pos=`{echo $url | awk -F: '{print $2}'}
+
+	if (test -f $"file)
+		term_run vile -c$"pos $"file
+}
+
+if (test -f $url && ~ $url *.png *.PNG *.jpg *.JPG *.gif)
+	exec sxiv $url
+
+if (test -f $url && whatis file >[1=] >[2=]) {
+	mime=`{file -i $url | awk 'BEGIN {FS="[;:]"} {print $2;}'}
+	fmt=`{awk -F';' -v 'mime='$mime '
+		BEGIN {
+			mime_all = mime
+			sub(/\/.*$/, "/*", mime_all)
+		}
+		$1 == mime_all || $1 == mime {print $2; exit}' < $HOME/.mailcap}
+	cmd=`{printf $"fmt ''''$url''''}
+	eval exec $"cmd
+}
+echo $url

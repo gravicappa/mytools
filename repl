@@ -1,0 +1,3 @@
+#!/bin/sh
+exec rlwrap -a'' -C "$(basename "$1")" piper "$@"
+#exec enhance piper "$@"
