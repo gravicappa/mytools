@@ -37,11 +37,11 @@ test -z $"me && me=$USER
 test -z $"me && me=`{whoami}
 
 fn st_warn {
-	for (f in /tmp/ns.$me/msgs/*)
-		if (! ~ $f /tmp/ns.$me/msgs/'*') {
-			m=`{cat $f}
-			printf '%s. ' $"m
-		}
+  for (f in /tmp/ns.$me/msgs/*)
+    if (! ~ $f /tmp/ns.$me/msgs/'*') {
+      m=`{cat $f}
+      printf '%s. ' $"m
+    }
 }
 
 while (st_warn; st_mail; st_vol; st_acpi; st_date)

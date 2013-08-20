@@ -6,33 +6,49 @@ update=no
 jamendo_cmd=show_list
 raw_id=no
 download_dir=$HOME/music/jamendo.com
+prefix=/tmp/ns.$USER/jamendo
+order=ratingmonth_desc
 
 fn usage {
-	echo 'usage: jamendo [-u tag] [-raw] [-list|-play|-get] <id>' >[1=2]
-	exit 1
+  echo 'usage: jamendo [list|play|get] [-u tag] [-o order] [-raw] <id>' \
+       >[1=2]
+  echo '  order:  releasedate, rating(|week|month), weight, starred' >[1=2]
+  exit 1
+}
+
+switch ($1) {
+case list
+  jamendo_cmd=show_list
+  shift
+case play
+  jamendo_cmd=play
+  shift
+case get
+  jamendo_cmd=download
+  shift
 }
 
 while (test $#* -gt 0 && ~ $1 [-]*) {
-	switch ($1) {
-		case -u
-			update=yes
-			shift
-			tag=$1
-		case -n
-			shift
-			nitems=$1
-		case -list
-			jamendo_cmd=show_list
-		case -play
-			jamendo_cmd=play
-		case -get
-			jamendo_cmd=download
-		case -raw
-			raw_id=yes
-		case -*
-			usage
-	}
-	shift
+  switch ($1) {
+  case -u
+    update=yes
+    tag=$2
+    shift
+  case -n
+    nitems=$2
+    shift
+  case -o
+    if (~ $2 +*)
+      order=`{echo $2 | sed 's/^.//'}
+    if not
+      order=$2^_desc
+    shift
+  case -raw
+    raw_id=yes
+  case -*
+    usage
+  }
+  shift
 }
 
 api=http://api.jamendo.com/get2
@@ -42,8 +58,7 @@ unit=album
 
 query=($query 'tag_idstr='$tag)
 query=($query 'n='$nitems)
-#query=($query 'order=rating')
-query=($query 'order=ratingmonth_desc')
+query=($query 'order='$order)
 
 url=$api/$keys/$unit/$type/?
 s=''
@@ -52,47 +67,75 @@ for(q in $query) {
   s='&'
 }
 
-lst=/tmp/ns.$USER/jamendo
+lst=$prefix.lst
+playlist=$prefix.pls
+download_fifo=$prefix.out
 
 if (~ $update yes || test ! -f $lst)
-	wget $url -O - >$lst
+  curl -L -o - $url >$lst >[2]/dev/null
 
 fn get_id {
-	if (~ $raw_id yes)
-		echo $1
-	if not
-		awk -v 'n='$1 'NR == n {print $1}' <$lst
+  if (~ $raw_id yes)
+    echo $1
+  if not
+    awk -v 'n='$1 'NR == n {print $1}' <$lst
 }
 
 fn show_list {
   awk 'BEGIN{FS="\t"}
        {
-         printf "%3d [%7d] %s /%s [%s]\n", ++N, $1, $2, $4, $5
+         printf "%3d [%7d] %s <%s> [%s]\n", ++N, $1, $2, $4, $5
        }' <$lst
 }
 
+fn cleanup {
+  test $#download_pid -ne 0 && kill $download_pid
+  rm -f $download_fifo
+}
+
+fn play_url {
+  fn sigexit {cleanup}
+  fn sigint {cleanup}
+  rm -f $download_fifo
+  mkfifo $download_fifo
+  curl -L -s -o $download_fifo $1 &
+  download_pid=$apid
+  mplayer -cache 8192 -cache-min 5 $"download_fifo
+  kill $download_pid
+  rm -f $download_fifo
+}
+
 fn play {
-	i=`{get_id $1}
-	urlhead='http://www.jamendo.com/get2/stream/track/m3u/?album_id='
-	urltail='&order=numalbum_asc'
-	exec mplayer -playlist $"urlhead$i$"urltail
+  i=`{get_id $1}
+  urlhead='http://api.jamendo.com/get2/stream/track/m3u/?album_id='
+  urltail='&order=numalbum_asc'
+  url=$"urlhead$i$"urltail
+  {
+    echo 'fn sigint {echo SIGINT >[1=2]}'
+    curl -s -o - $"url | grep '^http' | while (line=`{read}) {
+      echo play_url ''''^$"line^''''
+      echo sleep 1
+    }
+  }>$playlist
+  @ {. $playlist}
 }
 
 fn download {
-	i=`{get_id $1}
-	name=`{awk -v 'id='$i 'BEGIN{FS="\t"}
-								 $1 == id {
-									 printf("%s - %s", $4, $2)
-								 }' <$lst}
-	url='http://www.jamendo.com/get/album/id/album/archiverestricted/redirect/%s/?are=ogg3'
-	@ {
-		cd $download_dir || exit 1
-		mkdir $"name
-		wget `{printf $url $i} -O $"name/archive.zip || exit 1
-		cd $"name || exit 1
-		unzip archive.zip || exit 1
-		rm -f archive.zip
-	}
+  i=`{get_id $1}
+  name=`{awk -v 'id='$i 'BEGIN{FS="\t"}
+                         $1 == id {printf("%s - %s", $4, $2)}' <$lst}
+  url='http://www.jamendo.com/get/album/id/album/archiverestricted/redirect/%s/?are=ogg3'
+  url=`{printf $url $i}
+  echo Downloading from URL: $url >[1=2]
+  @ {
+    cd $download_dir || exit 1
+    mkdir -p $"name
+    rm -f $"name/archive.zip 
+    curl -k -L $url -o $"name/archive.zip || exit 1
+    cd $"name || exit 1
+    unzip archive.zip || exit 1
+    rm -f archive.zip
+  }
 }
 
 $jamendo_cmd $*
